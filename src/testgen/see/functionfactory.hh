@@ -20,8 +20,8 @@ class FunctionFactory {
         virtual unique_ptr<Function> getFunction(string fname, vector<Expr*> args) = 0;
 
     protected:
-        static template <typename DerivedType, typename BaseType>
-        unique_ptr<DerivedType> dynamic_pointer_cast(std::unique_ptr<BaseType>&);
 };
 
+template <typename DerivedType, typename BaseType>
+unique_ptr<DerivedType> dynamic_pointer_cast(std::unique_ptr<BaseType>&);
 

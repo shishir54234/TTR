@@ -24,6 +24,7 @@ enum class HTTPResponseCode
 
 enum class ExprType
 {
+    INPUT,
     FUNCCALL,
     MAP,
     NUM,
@@ -48,6 +49,7 @@ enum class TypeExprType
 enum class StmtType
 {
     ASSIGN,
+    ASSUME,
     FUNCTIONCALL_STMT,
     DECL,
 };
@@ -164,15 +166,10 @@ public:
     virtual unique_ptr<Expr> clone() const = 0;
 };
 
-class Var : public Expr
-{
+class Input : public Expr {
 public:
-    const string name;
-public:
-    explicit Var(string);
-    void accept(ASTVisitor &)  override;
-    bool operator<(const Var &v) const;
-    unique_ptr<Expr> clone() const override;
+    virtual void accept(ASTVisitor&);
+    virtual unique_ptr<Expr> clone();
 };
 
 class FuncCall : public Expr
@@ -186,22 +183,22 @@ public:
     unique_ptr<Expr> clone() const override;
 };
 
+class Map : public Expr
+{
+public:
+    const vector<pair<unique_ptr<Var>, unique_ptr<Expr>>> value;
+public:
+    explicit Map(vector<pair<unique_ptr<Var>, unique_ptr<Expr>>>);
+    void accept(ASTVisitor &visitor)  override;
+    unique_ptr<Expr> clone() const override;
+};
+
 class Num : public Expr
 {
 public:
     const int value;
 public:
     explicit Num(int);
-    void accept(ASTVisitor &) override;
-    unique_ptr<Expr> clone() const override;
-};
-
-class String : public Expr
-{
-public:
-    const string value;
-public:
-    explicit String(string);
     void accept(ASTVisitor &) override;
     unique_ptr<Expr> clone() const override;
 };
@@ -217,13 +214,13 @@ public:
 
 };
 
-class Map : public Expr
+class String : public Expr
 {
 public:
-    const vector<pair<unique_ptr<Var>, unique_ptr<Expr>>> value;
+    const string value;
 public:
-    explicit Map(vector<pair<unique_ptr<Var>, unique_ptr<Expr>>>);
-    void accept(ASTVisitor &visitor)  override;
+    explicit String(string);
+    void accept(ASTVisitor &) override;
     unique_ptr<Expr> clone() const override;
 };
 
@@ -234,6 +231,17 @@ public:
 public:
     explicit Tuple(vector<unique_ptr<Expr>> exprs);
     void accept(ASTVisitor &visitor)  override;
+    unique_ptr<Expr> clone() const override;
+};
+
+class Var : public Expr
+{
+public:
+    const string name;
+public:
+    explicit Var(string);
+    void accept(ASTVisitor &)  override;
+    bool operator<(const Var &v) const;
     unique_ptr<Expr> clone() const override;
 };
 
@@ -332,6 +340,17 @@ public:
     const unique_ptr<Expr> right;
 public:
     Assign(unique_ptr<Var>, unique_ptr<Expr>);
+    void accept(ASTVisitor &visitor)  override;
+    unique_ptr<Stmt> clone() const override;
+};
+
+// Assume statement: assume(c)
+class Assume : public Stmt
+{
+public:
+    const unique_ptr<Expr> expr;
+public:
+    Assume(unique_ptr<Expr>);
     void accept(ASTVisitor &visitor)  override;
     unique_ptr<Stmt> clone() const override;
 };

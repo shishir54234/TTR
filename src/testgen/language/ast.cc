@@ -266,8 +266,7 @@ Stmt::Stmt(StmtType type) : statementType(type) {}
 Assign::Assign(unique_ptr<Var> left, unique_ptr<Expr> right)
     : Stmt(StmtType::ASSIGN), left(std::move(left)), right(std::move(right)) {}
 
-void Assign::accept(ASTVisitor &visitor) {
-}
+void Assign::accept(ASTVisitor &visitor) {}
 
 unique_ptr<Stmt> Assign::clone() const {
     // Clone the left-hand side; left->clone() returns a unique_ptr<Expr>.
@@ -284,6 +283,18 @@ unique_ptr<Stmt> Assign::clone() const {
 
     // Return a new Assign node constructed with the cloned children.
     return make_unique<Assign>(std::move(clonedLeft), std::move(clonedRight));
+}
+
+Assume::Assume(unique_ptr<Expr> e) : Stmt(StmtType::ASSUME), expr(std::move(e)) {}
+
+void Assume::accept(ASTVisitor &visitor) {}
+
+unique_ptr<Stmt> Assume::clone() const {
+    // Clone the right-hand side normally (returns a unique_ptr<Expr>).
+    unique_ptr<Expr> clonedExpr = expr->clone();
+
+    // Return a new Assign node constructed with the cloned children.
+    return make_unique<Assume>(std::move(clonedExpr));
 }
 
 FuncCallStmt::FuncCallStmt(unique_ptr<FuncCall> call)

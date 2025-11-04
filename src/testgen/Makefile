@@ -11,7 +11,7 @@ $(BUILD)/ast.o : language/ast.cc language/ast.hh language/astvisitor.hh
 $(BUILD)/env.o : language/env.cc language/env.hh
 	$(CC) -c language/env.cc -o $(BUILD)/env.o $(INC)
 
-$(BUILD)/see.o : see/see.cc see/see.hh language/ast.hh language/functionfactory.hh
+$(BUILD)/see.o : see/see.cc see/see.hh language/ast.hh language/env.hh see/functionfactory.hh
 	$(CC) -c see/see.cc -o $(BUILD)/see.o $(INC)
 
 $(BUILD)/solver.o : see/solver.cc see/solver.hh language/ast.hh

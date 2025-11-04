@@ -40,7 +40,7 @@ template <typename T1, typename T2> void Env<T1, T2>::addMapping(T1 *key, T2 *va
 
 template <typename T1, typename T2> Env<T1, T2>::~Env() {}
 
-SymbolTable::SymbolTable(SymbolTable *p) : Env(p) {}
+SymbolTable::SymbolTable(SymbolTable *p = nullptr) : Env(p) {}
 
 string SymbolTable::keyToString(string* key) {
     return *key;
