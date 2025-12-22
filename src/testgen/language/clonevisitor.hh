@@ -20,6 +20,7 @@ public:
 
 private:
     // Type Expression cloners
+    unique_ptr<TypeExpr> cloneTypeConst(const TypeConst &node);
     unique_ptr<TypeExpr> cloneFuncType(const FuncType &node);
     unique_ptr<TypeExpr> cloneMapType(const MapType &node);
     unique_ptr<TypeExpr> cloneTupleType(const TupleType &node);
@@ -39,7 +40,7 @@ private:
     // Statement cloners
     unique_ptr<Stmt> cloneAssign(const Assign &node);
     unique_ptr<Stmt> cloneAssume(const Assume &node);
-    
+
     // Helper to clone vectors
     vector<unique_ptr<TypeExpr>> cloneTypeExprVector(const vector<unique_ptr<TypeExpr>>& vec);
     vector<unique_ptr<Expr>> cloneExprVector(const vector<unique_ptr<Expr>>& vec);

@@ -139,7 +139,11 @@ unique_ptr<Program> Tester::rewriteATC(unique_ptr<Program>& atc, vector<Expr*> C
                 if(fc.name == "input" && fc.args.size() == 0) {
                     if(concreteValIndex < ConcreteVals.size()) {
                         // Create new assignment: x := concreteValue
-                        unique_ptr<Var> leftVar = make_unique<Var>(assign.left->name);
+                        Var* leftVarPtr = dynamic_cast<Var*>(assign.left.get());
+                        if (!leftVarPtr) {
+                            throw runtime_error("Expected Var on left side of input assignment");
+                        }
+                        unique_ptr<Var> leftVar = make_unique<Var>(leftVarPtr->name);
                         unique_ptr<Expr> rightExpr = cloner.cloneExpr(ConcreteVals[concreteValIndex]);
                         
                         newStmts.push_back(make_unique<Assign>(move(leftVar), move(rightExpr)));

@@ -76,18 +76,15 @@ public:
 };
 
 // Type Expressions
-/*
 class TypeConst : public TypeExpr
 {
 public:
     const string name;
 public:
-    explicit TypeConst(string);
-    void accept(ASTVisitor &) override;
-    unique_ptr<TypeExpr> clone() override;
+    TypeConst(string name);
     virtual string toString();
 };
-*/
+
 
 class FuncType : public TypeExpr
 {
@@ -114,7 +111,7 @@ class TupleType : public TypeExpr
 public:
     const vector<unique_ptr<TypeExpr>> elements;
 public:
-    explicit TupleType(vector<unique_ptr<TypeExpr>>); 
+    explicit TupleType(vector<unique_ptr<TypeExpr>>);
     virtual string toString();
 };
 
@@ -298,10 +295,10 @@ protected:
 class Assign : public Stmt
 {
 public:
-    const unique_ptr<Var> left;
+    const unique_ptr<Expr> left;  // Changed from Var to Expr to support tuples
     const unique_ptr<Expr> right;
 public:
-    Assign(unique_ptr<Var>, unique_ptr<Expr>);
+    Assign(unique_ptr<Expr>, unique_ptr<Expr>);
 };
 
 // Assume statement: assume(c)
@@ -313,6 +310,14 @@ public:
     Assume(unique_ptr<Expr>);
 };
 
+// Assert statement: assert(c)
+class Assert : public Stmt
+{
+public:
+    const unique_ptr<Expr> expr;
+public:
+    Assert(unique_ptr<Expr>);
+};
 
 //    is the root of our AST
 class Program

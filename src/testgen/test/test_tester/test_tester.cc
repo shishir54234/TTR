@@ -24,7 +24,8 @@ public:
             cout << "  Statement " << i << ": ";
             if(prog.statements[i]->statementType == StmtType::ASSIGN) {
                 Assign& assign = dynamic_cast<Assign&>(*prog.statements[i]);
-                cout << assign.left->name << " := " << TestUtils::exprToString(assign.right.get()) << endl;
+                Var* leftVar = dynamic_cast<Var*>(assign.left.get());
+                cout << (leftVar ? leftVar->name : "?") << " := " << TestUtils::exprToString(assign.right.get()) << endl;
             } else if(prog.statements[i]->statementType == StmtType::ASSUME) {
                 Assume& assume = dynamic_cast<Assume&>(*prog.statements[i]);
                 cout << "assume(" << TestUtils::exprToString(assume.expr.get()) << ")" << endl;
@@ -220,7 +221,8 @@ protected:
         
         // Verify first statement is x := 5
         Assign& assign1 = dynamic_cast<Assign&>(*result->statements[0]);
-        assert(assign1.left->name == "x");
+        Var* leftVar1 = dynamic_cast<Var*>(assign1.left.get());
+        assert(leftVar1 && leftVar1->name == "x");
         assert(assign1.right->exprType == ExprType::NUM);
         Num& num1 = dynamic_cast<Num&>(*assign1.right);
         assert(num1.value == 5);
@@ -353,7 +355,8 @@ protected:
         assert(result->statements.size() == 2);
         assert(result->statements[0]->statementType == StmtType::ASSIGN);
         Assign& assign = dynamic_cast<Assign&>(*result->statements[0]);
-        assert(assign.left->name == "x");
+        Var* leftVar = dynamic_cast<Var*>(assign.left.get());
+        assert(leftVar && leftVar->name == "x");
         assert(assign.right->exprType == ExprType::NUM);
         Num& num = dynamic_cast<Num&>(*assign.right);
         assert(num.value == 10);
@@ -395,15 +398,18 @@ protected:
         assert(result->statements.size() == 3);
         
         Assign& assign1 = dynamic_cast<Assign&>(*result->statements[0]);
-        assert(assign1.left->name == "x");
+        Var* leftVar1 = dynamic_cast<Var*>(assign1.left.get());
+        assert(leftVar1 && leftVar1->name == "x");
         assert(dynamic_cast<Num&>(*assign1.right).value == 5);
         
         Assign& assign2 = dynamic_cast<Assign&>(*result->statements[1]);
-        assert(assign2.left->name == "y");
+        Var* leftVar2 = dynamic_cast<Var*>(assign2.left.get());
+        assert(leftVar2 && leftVar2->name == "y");
         assert(dynamic_cast<Num&>(*assign2.right).value == 10);
         
         Assign& assign3 = dynamic_cast<Assign&>(*result->statements[2]);
-        assert(assign3.left->name == "z");
+        Var* leftVar3 = dynamic_cast<Var*>(assign3.left.get());
+        assert(leftVar3 && leftVar3->name == "z");
         assert(dynamic_cast<Num&>(*assign3.right).value == 15);
     }
 };
@@ -442,11 +448,13 @@ protected:
         assert(result->statements.size() == 2);
         
         Assign& assign1 = dynamic_cast<Assign&>(*result->statements[0]);
-        assert(assign1.left->name == "x");
+        Var* leftVar1 = dynamic_cast<Var*>(assign1.left.get());
+        assert(leftVar1 && leftVar1->name == "x");
         assert(dynamic_cast<Num&>(*assign1.right).value == 5);
         
         Assign& assign2 = dynamic_cast<Assign&>(*result->statements[1]);
-        assert(assign2.left->name == "y");
+        Var* leftVar2 = dynamic_cast<Var*>(assign2.left.get());
+        assert(leftVar2 && leftVar2->name == "y");
         assert(dynamic_cast<Num&>(*assign2.right).value == 10);
     }
 };
@@ -492,19 +500,23 @@ protected:
         assert(result->statements.size() == 4);
         
         Assign& assign1 = dynamic_cast<Assign&>(*result->statements[0]);
-        assert(assign1.left->name == "x");
+        Var* leftVar1 = dynamic_cast<Var*>(assign1.left.get());
+        assert(leftVar1 && leftVar1->name == "x");
         assert(dynamic_cast<Num&>(*assign1.right).value == 10);
         
         Assign& assign2 = dynamic_cast<Assign&>(*result->statements[1]);
-        assert(assign2.left->name == "y");
+        Var* leftVar2 = dynamic_cast<Var*>(assign2.left.get());
+        assert(leftVar2 && leftVar2->name == "y");
         assert(dynamic_cast<Num&>(*assign2.right).value == 5);
         
         Assign& assign3 = dynamic_cast<Assign&>(*result->statements[2]);
-        assert(assign3.left->name == "z");
+        Var* leftVar3 = dynamic_cast<Var*>(assign3.left.get());
+        assert(leftVar3 && leftVar3->name == "z");
         assert(dynamic_cast<Num&>(*assign3.right).value == 20);
         
         Assign& assign4 = dynamic_cast<Assign&>(*result->statements[3]);
-        assert(assign4.left->name == "w");
+        Var* leftVar4 = dynamic_cast<Var*>(assign4.left.get());
+        assert(leftVar4 && leftVar4->name == "w");
         assert(assign4.right->exprType == ExprType::FUNCCALL);
     }
 };
@@ -542,17 +554,20 @@ protected:
         assert(result->statements.size() == 3);
         
         Assign& assign1 = dynamic_cast<Assign&>(*result->statements[0]);
-        assert(assign1.left->name == "x");
+        Var* leftVar1 = dynamic_cast<Var*>(assign1.left.get());
+        assert(leftVar1 && leftVar1->name == "x");
         assert(assign1.right->exprType == ExprType::NUM);
         assert(dynamic_cast<Num&>(*assign1.right).value == 5);
         
         Assign& assign2 = dynamic_cast<Assign&>(*result->statements[1]);
-        assert(assign2.left->name == "y");
+        Var* leftVar2 = dynamic_cast<Var*>(assign2.left.get());
+        assert(leftVar2 && leftVar2->name == "y");
         assert(assign2.right->exprType == ExprType::NUM);
         assert(dynamic_cast<Num&>(*assign2.right).value == 10);
         
         Assign& assign3 = dynamic_cast<Assign&>(*result->statements[2]);
-        assert(assign3.left->name == "z");
+        Var* leftVar3 = dynamic_cast<Var*>(assign3.left.get());
+        assert(leftVar3 && leftVar3->name == "z");
         assert(assign3.right->exprType == ExprType::FUNCCALL);
         FuncCall& fc = dynamic_cast<FuncCall&>(*assign3.right);
         assert(fc.name == "input");
@@ -684,14 +699,16 @@ protected:
         
         assert(result->statements[0]->statementType == StmtType::ASSIGN);
         Assign& assign1 = dynamic_cast<Assign&>(*result->statements[0]);
-        assert(assign1.left->name == "x");
+        Var* leftVar1 = dynamic_cast<Var*>(assign1.left.get());
+        assert(leftVar1 && leftVar1->name == "x");
         assert(dynamic_cast<Num&>(*assign1.right).value == 5);
         
         assert(result->statements[1]->statementType == StmtType::ASSUME);
         
         assert(result->statements[2]->statementType == StmtType::ASSIGN);
         Assign& assign2 = dynamic_cast<Assign&>(*result->statements[2]);
-        assert(assign2.left->name == "y");
+        Var* leftVar2 = dynamic_cast<Var*>(assign2.left.get());
+        assert(leftVar2 && leftVar2->name == "y");
         assert(dynamic_cast<Num&>(*assign2.right).value == 50);
         
         assert(result->statements[3]->statementType == StmtType::ASSUME);
@@ -736,18 +753,21 @@ protected:
         assert(result->statements.size() == 3);
         
         Assign& assign1 = dynamic_cast<Assign&>(*result->statements[0]);
-        assert(assign1.left->name == "x");
+        Var* leftVar1 = dynamic_cast<Var*>(assign1.left.get());
+        assert(leftVar1 && leftVar1->name == "x");
         assert(assign1.right->exprType == ExprType::NUM);
         assert(dynamic_cast<Num&>(*assign1.right).value == 10);
         
         Assign& assign2 = dynamic_cast<Assign&>(*result->statements[1]);
-        assert(assign2.left->name == "y");
+        Var* leftVar2 = dynamic_cast<Var*>(assign2.left.get());
+        assert(leftVar2 && leftVar2->name == "y");
         assert(assign2.right->exprType == ExprType::FUNCCALL);
         FuncCall& fc2 = dynamic_cast<FuncCall&>(*assign2.right);
         assert(fc2.name == "Add");
         
         Assign& assign3 = dynamic_cast<Assign&>(*result->statements[2]);
-        assert(assign3.left->name == "z");
+        Var* leftVar3 = dynamic_cast<Var*>(assign3.left.get());
+        assert(leftVar3 && leftVar3->name == "z");
         assert(assign3.right->exprType == ExprType::FUNCCALL);
         FuncCall& fc3 = dynamic_cast<FuncCall&>(*assign3.right);
         assert(fc3.name == "Mul");
@@ -972,7 +992,8 @@ protected:
         for(const auto& stmt : result->statements) {
             if(stmt->statementType == StmtType::ASSIGN) {
                 Assign& assign = dynamic_cast<Assign&>(*stmt);
-                if((assign.left->name == "x" || assign.left->name == "y") && 
+                Var* leftVar = dynamic_cast<Var*>(assign.left.get());
+                if(leftVar && (leftVar->name == "x" || leftVar->name == "y") && 
                    assign.right->exprType == ExprType::NUM) {
                     concreteAssignments++;
                 }
@@ -993,7 +1014,7 @@ protected:
 /*
 Test: Global state management with getter/setter functions
 Program:
-    set_y(0)
+    set_y(0) // _temp0 := set_y(0)
     y1 := get_y()
     x1 := input()
     assume(x1 < 10)

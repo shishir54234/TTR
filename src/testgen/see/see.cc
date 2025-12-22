@@ -36,6 +36,38 @@ static string exprToString(Expr* expr) {
         String* str = dynamic_cast<String*>(expr);
         return "\"" + str->value + "\"";
     }
+    else if (expr->exprType == ExprType::SET) {
+        Set* set = dynamic_cast<Set*>(expr);
+        string result = "{";
+        for (size_t i = 0; i < set->elements.size(); i++) {
+            if (i > 0) result += ", ";
+            result += exprToString(set->elements[i].get());
+        }
+        result += "}";
+        return result;
+    }
+    else if (expr->exprType == ExprType::MAP) {
+        Map* map = dynamic_cast<Map*>(expr);
+        string result = "{";
+        for (size_t i = 0; i < map->value.size(); i++) {
+            if (i > 0) result += ", ";
+            result += exprToString(map->value[i].first.get());
+            result += " -> ";
+            result += exprToString(map->value[i].second.get());
+        }
+        result += "}";
+        return result;
+    }
+    else if (expr->exprType == ExprType::TUPLE) {
+        Tuple* tuple = dynamic_cast<Tuple*>(expr);
+        string result = "(";
+        for (size_t i = 0; i < tuple->exprs.size(); i++) {
+            if (i > 0) result += ", ";
+            result += exprToString(tuple->exprs[i].get());
+        }
+        result += ")";
+        return result;
+    }
     
     return "Unknown";
 }
@@ -209,10 +241,28 @@ bool SEE::isReady(Expr& e, SymbolTable& st) {
 bool SEE::isAPI(const FuncCall& fc) {
     // Built-in functions that are NOT API calls
     static const set<string> builtInFunctions = {
-        "Add", "Sub", "Mul", "Div",  // Arithmetic
-        "Eq", "Lt", "Gt", "Le", "Ge", // Comparison
-        "And", "Or", "Not",           // Logical
-        "input"                        // Input function
+        // Arithmetic
+        "Add", "Sub", "Mul", "Div",
+        // Comparison
+        "Eq", "Lt", "Gt", "Le", "Ge", "Neq",
+        "=", "==", "!=", "<>", "<", ">", "<=", ">=",
+        // Logical
+        "And", "Or", "Not", "Implies",
+        "and", "or", "not", "&&", "||", "!",
+        // Input
+        "input",
+        // Set operations
+        "in", "not_in", "member", "not_member", "contains", "not_contains",
+        "union", "intersection", "intersect", "difference", "diff", "minus",
+        "subset", "is_subset", "add_to_set", "remove_from_set", "is_empty_set",
+        // Map operations
+        "get", "put", "lookup", "select", "store", "update",
+        "contains_key", "has_key",
+        // List/Sequence operations
+        "concat", "append_list", "length", "at", "nth",
+        "prefix", "suffix", "contains_seq",
+        // Prime notation (for postconditions)
+        "'"
     };
     
     return builtInFunctions.find(fc.name) == builtInFunctions.end();
@@ -325,7 +375,16 @@ void SEE::executeStmt(Stmt& stmt, SymbolTable& st) {
         Assign& assign = dynamic_cast<Assign&>(stmt);
         
         // Get the variable name from the left-hand side
-        string varName = assign.left->name;
+        string varName;
+        if (assign.left->exprType == ExprType::VAR) {
+            Var* leftVar = dynamic_cast<Var*>(assign.left.get());
+            varName = leftVar->name;
+        } else if (assign.left->exprType == ExprType::TUPLE) {
+            // Handle tuple assignment - use first element name or placeholder
+            varName = "_tuple_result";
+        } else {
+            varName = "_unknown";
+        }
         
         cout << "\n[ASSIGN] Evaluating: " << varName << " := " << exprToString(assign.right.get()) << endl;
         
@@ -428,6 +487,7 @@ void SEE::executeStmt(Stmt& stmt, SymbolTable& st) {
 
 Expr* SEE::evaluateExpr(Expr& expr, SymbolTable& st) {
     // Evaluate expressions based on their type
+    CloneVisitor cloner;
     
     if(expr.exprType == ExprType::FUNCCALL) {
         FuncCall& fc = dynamic_cast<FuncCall&>(expr);
@@ -442,7 +502,6 @@ Expr* SEE::evaluateExpr(Expr& expr, SymbolTable& st) {
         }
         
         // Evaluate all arguments
-        CloneVisitor cloner;
         vector<unique_ptr<Expr>> evaluatedArgs;
         for (size_t i = 0; i < fc.args.size(); i++) {
             cout << "    [EVAL] Arg[" << i << "]: " << exprToString(fc.args[i]) << endl;
@@ -456,10 +515,14 @@ Expr* SEE::evaluateExpr(Expr& expr, SymbolTable& st) {
         
         return result;
     }
-    else if(expr.exprType == ExprType::NUM || expr.exprType == ExprType::STRING) {
-        // Concrete values, nothing to evaluate
+    else if(expr.exprType == ExprType::NUM) {
         Num* result = new Num(dynamic_cast<Num&>(expr).value);
         cout << "  [EVAL] Num: " << exprToString(result) << endl;
+        return result;
+    }
+    else if(expr.exprType == ExprType::STRING) {
+        String* result = new String(dynamic_cast<String&>(expr).value);
+        cout << "  [EVAL] String: " << exprToString(result) << endl;
         return result;
     }
     else if(expr.exprType == ExprType::SYMVAR) {
@@ -478,6 +541,54 @@ Expr* SEE::evaluateExpr(Expr& expr, SymbolTable& st) {
         }
         cout << "    [EVAL] Not found in sigma, returning as-is" << endl;
         return &expr;
+    }
+    else if(expr.exprType == ExprType::SET) {
+        // Evaluate each element in the set
+        Set& set = dynamic_cast<Set&>(expr);
+        cout << "  [EVAL] Set with " << set.elements.size() << " elements" << endl;
+        
+        vector<unique_ptr<Expr>> evaluatedElements;
+        for (size_t i = 0; i < set.elements.size(); i++) {
+            Expr* elemResult = evaluateExpr(*set.elements[i], st);
+            evaluatedElements.push_back(cloner.cloneExpr(elemResult));
+        }
+        
+        Set* result = new Set(::move(evaluatedElements));
+        cout << "    [EVAL] Set result: " << exprToString(result) << endl;
+        return result;
+    }
+    else if(expr.exprType == ExprType::MAP) {
+        // Evaluate each key-value pair in the map
+        Map& map = dynamic_cast<Map&>(expr);
+        cout << "  [EVAL] Map with " << map.value.size() << " entries" << endl;
+        
+        vector<pair<unique_ptr<Var>, unique_ptr<Expr>>> evaluatedPairs;
+        for (size_t i = 0; i < map.value.size(); i++) {
+            // Clone the key (Var)
+            unique_ptr<Var> keyClone = make_unique<Var>(map.value[i].first->name);
+            // Evaluate the value
+            Expr* valResult = evaluateExpr(*map.value[i].second, st);
+            evaluatedPairs.push_back(make_pair(::move(keyClone), cloner.cloneExpr(valResult)));
+        }
+        
+        Map* result = new Map(::move(evaluatedPairs));
+        cout << "    [EVAL] Map result: " << exprToString(result) << endl;
+        return result;
+    }
+    else if(expr.exprType == ExprType::TUPLE) {
+        // Evaluate each element in the tuple
+        Tuple& tuple = dynamic_cast<Tuple&>(expr);
+        cout << "  [EVAL] Tuple with " << tuple.exprs.size() << " elements" << endl;
+        
+        vector<unique_ptr<Expr>> evaluatedExprs;
+        for (size_t i = 0; i < tuple.exprs.size(); i++) {
+            Expr* elemResult = evaluateExpr(*tuple.exprs[i], st);
+            evaluatedExprs.push_back(cloner.cloneExpr(elemResult));
+        }
+        
+        Tuple* result = new Tuple(::move(evaluatedExprs));
+        cout << "    [EVAL] Tuple result: " << exprToString(result) << endl;
+        return result;
     }
     
     // Default case: return the expression as-is

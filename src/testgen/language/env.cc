@@ -42,6 +42,23 @@ template <typename T1, typename T2> Env<T1, T2>::~Env() {}
 
 SymbolTable::SymbolTable(SymbolTable *p = nullptr) : Env(p) {}
 
+SymbolTable::~SymbolTable() {
+    // Don't delete children - they're managed by the caller
+    // Just clear the vector
+    children.clear();
+}
+
+void SymbolTable::addChild(SymbolTable* child) {
+    children.push_back(child);
+}
+
+SymbolTable* SymbolTable::getChild(size_t index) const {
+    if (index < children.size()) {
+        return children[index];
+    }
+    return nullptr;
+}
+
 string SymbolTable::keyToString(string* key) {
     return *key;
 }
@@ -49,6 +66,9 @@ string SymbolTable::keyToString(string* key) {
 void SymbolTable::print() {
     for(auto &d : table) {
         cout << d.first << " (" << d.first << ")" << endl;
+    }
+    if (!children.empty()) {
+        cout << "  Children: " << children.size() << " symbol tables" << endl;
     }
 }
 
@@ -175,3 +195,6 @@ bool ConcValEnv::hasValue(const string& varName) {
     }
     return false;
 }
+
+// Explicit template instantiation for TypeMap
+template class Env<string, TypeExpr>;

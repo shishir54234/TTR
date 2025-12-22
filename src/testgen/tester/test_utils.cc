@@ -29,6 +29,38 @@ string TestUtils::exprToString(Expr* expr) {
         String* str = dynamic_cast<String*>(expr);
         return "\"" + str->value + "\"";
     }
+    else if (expr->exprType == ExprType::SET) {
+        Set* set = dynamic_cast<Set*>(expr);
+        string result = "{";
+        for (size_t i = 0; i < set->elements.size(); i++) {
+            if (i > 0) result += ", ";
+            result += exprToString(set->elements[i].get());
+        }
+        result += "}";
+        return result;
+    }
+    else if (expr->exprType == ExprType::MAP) {
+        Map* map = dynamic_cast<Map*>(expr);
+        string result = "{";
+        for (size_t i = 0; i < map->value.size(); i++) {
+            if (i > 0) result += ", ";
+            result += exprToString(map->value[i].first.get());
+            result += " -> ";
+            result += exprToString(map->value[i].second.get());
+        }
+        result += "}";
+        return result;
+    }
+    else if (expr->exprType == ExprType::TUPLE) {
+        Tuple* tuple = dynamic_cast<Tuple*>(expr);
+        string result = "(";
+        for (size_t i = 0; i < tuple->exprs.size(); i++) {
+            if (i > 0) result += ", ";
+            result += exprToString(tuple->exprs[i].get());
+        }
+        result += ")";
+        return result;
+    }
     
     return "Unknown";
 }

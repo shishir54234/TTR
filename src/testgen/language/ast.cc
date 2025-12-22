@@ -2,21 +2,23 @@
 
 TypeExpr::TypeExpr(TypeExprType typeExprType) : typeExprType(typeExprType) {}
 
-FuncDecl::FuncDecl(string name, 
+FuncDecl::FuncDecl(string name,
     unique_ptr<TypeExpr> param,
     unique_ptr<TypeExpr> outp) : name(std::move(name)),
         params(std::move(param)), outp(std::move(outp)) {
 }
-/*
+
 TypeConst::TypeConst(string n) : TypeExpr(TypeExprType::TYPE_CONST), name(n) {
 }
+string TypeConst::toString() {
+	return "TYPE_CONST{" + name + "}";
+}
 
+/*
 void TypeConst::accept(ASTVisitor &visitor) {
 }
 
-string TypeConst::toString() {
-	return name;
-}
+
 
 unique_ptr<TypeExpr> TypeConst::clone() {
     return make_unique<TypeConst>(typeExprType);
@@ -116,10 +118,12 @@ Spec::Spec(vector<unique_ptr<Decl>> globals,
 
 Stmt::Stmt(StmtType type) : statementType(type) {}
 
-Assign::Assign(unique_ptr<Var> left, unique_ptr<Expr> right)
+Assign::Assign(unique_ptr<Expr> left, unique_ptr<Expr> right)
     : Stmt(StmtType::ASSIGN), left(std::move(left)), right(std::move(right)) {}
 
 Assume::Assume(unique_ptr<Expr> e) : Stmt(StmtType::ASSUME), expr(std::move(e)) {}
+
+Assert::Assert(unique_ptr<Expr> e) : Stmt(StmtType::ASSUME), expr(std::move(e)) {}
 
 Program::Program(vector<unique_ptr<Stmt>> Statements)
     : statements(std::move(Statements)) {}

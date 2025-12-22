@@ -47,6 +47,7 @@ public:
 
 protected:
     // Type Expression visitors - to be implemented by concrete visitors
+    virtual void visitTypeConst(const TypeConst &node) = 0;
     virtual void visitFuncType(const FuncType &node) = 0;
     virtual void visitMapType(const MapType &node) = 0;
     virtual void visitTupleType(const TupleType &node) = 0;

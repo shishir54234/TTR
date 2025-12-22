@@ -21,11 +21,22 @@ template<typename T1, typename T2> class Env {
         virtual ~Env();
 };
 
-class SymbolTable : public Env<string, Expr> {
+class SymbolTable : public Env<string, TypeExpr> {
+    private:
+        vector<SymbolTable*> children;  // Child symbol tables (one level deep)
+    
     public:
         SymbolTable(SymbolTable *parent);
         virtual void print();
         virtual string keyToString(string *);
+        
+        // Child management
+        void addChild(SymbolTable* child);
+        const vector<SymbolTable*>& getChildren() const { return children; }
+        SymbolTable* getChild(size_t index) const;
+        size_t getChildCount() const { return children.size(); }
+        
+        virtual ~SymbolTable();
 };
 
 // ValueEnvironment: maps variable names (strings) to their symbolic/concrete values (Expr*)

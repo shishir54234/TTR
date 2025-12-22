@@ -6,7 +6,10 @@ void ASTVisitor::visit(const TypeExpr* node) {
     if (!node)
         throw std::runtime_error("Null TypeExpr node in visitor");
 
-    if (node->typeExprType == TypeExprType::FUNC_TYPE) {
+    if (node->typeExprType == TypeExprType::TYPE_CONST) {
+        visitTypeConst(*dynamic_cast<const TypeConst*>(node));
+    }
+    else if (node->typeExprType == TypeExprType::FUNC_TYPE) {
         visitFuncType(*dynamic_cast<const FuncType*>(node));
     }
     else if (node->typeExprType == TypeExprType::MAP_TYPE) {

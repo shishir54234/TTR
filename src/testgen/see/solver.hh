@@ -11,7 +11,9 @@ using namespace std;
 
 enum class ResultType {
     BOOL,
-    INT
+    INT,
+    STRING,
+    ARRAY
 };
 
 class ResultValue {
@@ -31,6 +33,12 @@ class IntResultValue : public ResultValue {
     public:
         IntResultValue(int);
         const int value;
+};
+
+class StringResultValue : public ResultValue {
+    public:
+        StringResultValue(const string& val);
+        const string value;
 };
 
 class Result {

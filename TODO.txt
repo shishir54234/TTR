@@ -1,3 +1,23 @@
+22/12/25
+1. HTTPresponse code to be removed from response in ast and make the changes in genATC
+2. In the algorithm+testcases for genATC include the testString part instead of what you are doing now.
+3. Write testcases for end to end testing 
+
+4. documentation-> 
+1. How I have structured the code. 
+2. How I am testing the code
+3. Steps to test a new application (all the steps from writing specification, testapis etc)
+4. Documentation of end to end testing examples that include all the steps 
+
+
+5/12/25
+1. Integrate genATC in our current codebase following the new design 
+2. First step is to run it in isolation i.e write testcases for it before moving forward to integrate it.
+2.1. GenATC to be implemented in a seperate class than tester 
+2.2 all parts should be testable 
+
+
+
 1/12/25
 1. Wherever you are using global variables replace them with getters and setters treat 
 them as part of the functionfactory and write logic in apps1 to get/set the variables (according to me done)

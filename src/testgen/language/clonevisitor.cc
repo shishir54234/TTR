@@ -23,6 +23,8 @@ unique_ptr<TypeExpr> CloneVisitor::cloneTypeExpr(const TypeExpr* node) {
     if (!node) return nullptr;
     
     switch (node->typeExprType) {
+        case TypeExprType::TYPE_CONST:
+            return cloneTypeConst(dynamic_cast<const TypeConst&>(*node));
         case TypeExprType::FUNC_TYPE:
             return cloneFuncType(dynamic_cast<const FuncType&>(*node));
         case TypeExprType::MAP_TYPE:
@@ -77,6 +79,10 @@ unique_ptr<Stmt> CloneVisitor::cloneStmt(const Stmt* node) {
 }
 
 // TypeExpr cloners
+unique_ptr<TypeExpr> CloneVisitor::cloneTypeConst(const TypeConst &node) {
+    return make_unique<TypeConst>(node.name);
+}
+
 unique_ptr<TypeExpr> CloneVisitor::cloneFuncType(const FuncType &node) {
     vector<unique_ptr<TypeExpr>> clonedParams = cloneTypeExprVector(node.params);
     unique_ptr<TypeExpr> clonedReturn = cloneTypeExpr(node.returnType.get());
@@ -157,14 +163,7 @@ unique_ptr<Expr> CloneVisitor::cloneInput(const Input &node) {
 
 // Statement cloners
 unique_ptr<Stmt> CloneVisitor::cloneAssign(const Assign &node) {
-    unique_ptr<Expr> leftCloneBase = cloneExpr(node.left.get());
-    Var* leftCloneRaw = dynamic_cast<Var*>(leftCloneBase.release());
-    
-    if (!leftCloneRaw) {
-        throw runtime_error("Clone of left-hand side did not produce a Var instance");
-    }
-    
-    unique_ptr<Var> clonedLeft(leftCloneRaw);
+    unique_ptr<Expr> clonedLeft = cloneExpr(node.left.get());
     unique_ptr<Expr> clonedRight = cloneExpr(node.right.get());
     
     return make_unique<Assign>(std::move(clonedLeft), std::move(clonedRight));
