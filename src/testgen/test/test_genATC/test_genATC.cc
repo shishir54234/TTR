@@ -11,6 +11,37 @@
 using namespace std;
 
 /**
+ * Helper function to create ResponseExpr from HTTPResponseCode and optional expr
+ * Format: (_RESPONSE_CODE_XXX, expr) or just _RESPONSE_CODE_XXX
+ */
+unique_ptr<Expr> makeResponseExpr(HTTPResponseCode code, unique_ptr<Expr> expr = nullptr) {
+    string codeStr;
+    switch (code) {
+        case HTTPResponseCode::OK_200:
+            codeStr = "_RESPONSE_CODE_200";
+            break;
+        case HTTPResponseCode::CREATED_201:
+            codeStr = "_RESPONSE_CODE_201";
+            break;
+        case HTTPResponseCode::BAD_REQUEST_400:
+            codeStr = "_RESPONSE_CODE_400";
+            break;
+        default:
+            codeStr = "_RESPONSE_CODE_UNKNOWN";
+            break;
+    }
+    
+    if (expr) {
+        vector<unique_ptr<Expr>> tupleElements;
+        tupleElements.push_back(make_unique<Var>(codeStr));
+        tupleElements.push_back(std::move(expr));
+        return make_unique<Tuple>(std::move(tupleElements));
+    } else {
+        return make_unique<Var>(codeStr);
+    }
+}
+
+/**
  * Base class for genATC tests
  */
 class GenATCTest {
@@ -20,6 +51,7 @@ protected:
     virtual unique_ptr<Spec> makeSpec() = 0;
     virtual SymbolTable* makeSymbolTables() = 0;
     virtual TypeMap makeTypeMap() = 0;
+    virtual vector<string> makeTestString() = 0;
     virtual void verify(const Program& atc) = 0;
     virtual void cleanup(SymbolTable* globalTable) {
         if (globalTable) {
@@ -55,9 +87,12 @@ public:
         cout << "\nType Map:" << endl;
         typeMap.print();
 
+        // Get test string (list of block names to execute)
+        vector<string> testString = makeTestString();
+
         // Generate ATC
         ATCGenerator generator(spec.get(), std::move(typeMap));
-        Program atc = generator.generate(spec.get(), globalSymTable);
+        Program atc = generator.generate(spec.get(), globalSymTable, testString);
 
         // Print the generated ATC
         cout << "\nGenerated ATC:" << endl;
@@ -129,6 +164,11 @@ protected:
         return typeMap;
     }
 
+    vector<string> makeTestString() override {
+        // No blocks to execute
+        return {};
+    }
+
     void verify(const Program& atc) override {
         // Should have 1 initialization statement
         assert(atc.statements.size() == 1);
@@ -195,13 +235,14 @@ protected:
 
         auto apiCall = make_unique<APIcall>(
             std::move(call),
-            Response(HTTPResponseCode::OK_200, nullptr)
+            Response(makeResponseExpr(HTTPResponseCode::OK_200))
         );
 
         blocks.push_back(make_unique<API>(
             std::move(pre),
             std::move(apiCall),
-            Response(HTTPResponseCode::OK_200, nullptr)
+            Response(makeResponseExpr(HTTPResponseCode::OK_200)),
+            "signup"  // Block name
         ));
 
         return make_unique<Spec>(
@@ -238,6 +279,10 @@ protected:
         typeMap.setValue("u", new TypeConst("string"));
         typeMap.setValue("p", new TypeConst("string"));
         return typeMap;
+    }
+
+    vector<string> makeTestString() override {
+        return {"signup"};
     }
 
     void verify(const Program& atc) override {
@@ -282,13 +327,13 @@ protected:
         assert(assumeCall->name == "not_in");
         cout << "  ✓ Precondition assume() verified" << endl;
 
-        // Check API call - LHS is a Var (type is tuple in TypeMap)
+        // Check API call - LHS is now _RESPONSE_CODE_200 (from ResponseExpr)
         const Assign* apiCall = dynamic_cast<const Assign*>(atc.statements[4].get());
         assert(apiCall != nullptr);
         assert(apiCall->left->exprType == ExprType::VAR);
         const Var* resultVar = dynamic_cast<const Var*>(apiCall->left.get());
         assert(resultVar != nullptr);
-        assert(resultVar->name == "_result0");
+        assert(resultVar->name == "_RESPONSE_CODE_200");
         assert(apiCall->right->exprType == ExprType::FUNCCALL);
         const FuncCall* callFunc = dynamic_cast<const FuncCall*>(apiCall->right.get());
         assert(callFunc->name == "signup");
@@ -366,13 +411,14 @@ protected:
 
         auto apiCall = make_unique<APIcall>(
             std::move(call),
-            Response(HTTPResponseCode::OK_200, nullptr)
+            Response(makeResponseExpr(HTTPResponseCode::OK_200))
         );
 
         blocks.push_back(make_unique<API>(
             std::move(pre),
             std::move(apiCall),
-            Response(HTTPResponseCode::OK_200, std::move(post))
+            Response(makeResponseExpr(HTTPResponseCode::OK_200, std::move(post))),
+            "signup"  // Block name
         ));
 
         return make_unique<Spec>(
@@ -408,6 +454,10 @@ protected:
         typeMap.setValue("u", new TypeConst("string"));
         typeMap.setValue("p", new TypeConst("string"));
         return typeMap;
+    }
+
+    vector<string> makeTestString() override {
+        return {"signup"};
     }
 
     void verify(const Program& atc) override {
@@ -506,13 +556,14 @@ protected:
 
             auto apiCall = make_unique<APIcall>(
                 std::move(call),
-                Response(HTTPResponseCode::OK_200, nullptr)
+                Response(makeResponseExpr(HTTPResponseCode::OK_200))
             );
 
             blocks.push_back(make_unique<API>(
                 std::move(pre),
                 std::move(apiCall),
-                Response(HTTPResponseCode::OK_200, nullptr)
+                Response(makeResponseExpr(HTTPResponseCode::OK_200)),
+                "signup"  // Block name
             ));
         }
 
@@ -530,13 +581,14 @@ protected:
 
             auto apiCall = make_unique<APIcall>(
                 std::move(call),
-                Response(HTTPResponseCode::OK_200, nullptr)
+                Response(makeResponseExpr(HTTPResponseCode::OK_200))
             );
 
             blocks.push_back(make_unique<API>(
                 std::move(pre),
                 std::move(apiCall),
-                Response(HTTPResponseCode::OK_200, nullptr)
+                Response(makeResponseExpr(HTTPResponseCode::OK_200)),
+                "login"  // Block name
             ));
         }
 
@@ -586,6 +638,10 @@ protected:
         typeMap.setValue("u", new TypeConst("string"));
         typeMap.setValue("p", new TypeConst("string"));
         return typeMap;
+    }
+
+    vector<string> makeTestString() override {
+        return {"signup", "login"};
     }
 
     void verify(const Program& atc) override {

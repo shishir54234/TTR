@@ -7,10 +7,12 @@ void Tester::generateTest() {}
 // Check if a statement is an Input statement (x := input())
 bool isInputStmt(const Stmt& stmt) {
     if(stmt.statementType == StmtType::ASSIGN) {
-        const Assign& assign = dynamic_cast<const Assign&>(stmt);
-        if(assign.right->exprType == ExprType::FUNCCALL) {
-            const FuncCall& fc = dynamic_cast<const FuncCall&>(*assign.right);
-            return (fc.name == "input" && fc.args.size() == 0);
+        const Assign* assign = dynamic_cast<const Assign*>(&stmt);
+        if(assign && assign->right->exprType == ExprType::FUNCCALL) {
+            const FuncCall* fc = dynamic_cast<const FuncCall*>(assign->right.get());
+            if(fc) {
+                return (fc->name == "input" && fc->args.size() == 0);
+            }
         }
     }
     return false;
@@ -130,16 +132,16 @@ unique_ptr<Program> Tester::rewriteATC(unique_ptr<Program>& atc, vector<Expr*> C
 
         // Check if this is an Input statement (x := input())
         if(stmt->statementType == StmtType::ASSIGN) {
-            Assign& assign = dynamic_cast<Assign&>(*stmt);
+            Assign* assign = dynamic_cast<Assign*>(stmt.get());
             
-            if(assign.right->exprType == ExprType::FUNCCALL) {
-                FuncCall& fc = dynamic_cast<FuncCall&>(*assign.right);
+            if(assign && assign->right->exprType == ExprType::FUNCCALL) {
+                FuncCall* fc = dynamic_cast<FuncCall*>(assign->right.get());
                 
                 // If it's input() and we have concrete values, replace it
-                if(fc.name == "input" && fc.args.size() == 0) {
+                if(fc && fc->name == "input" && fc->args.size() == 0) {
                     if(concreteValIndex < ConcreteVals.size()) {
                         // Create new assignment: x := concreteValue
-                        Var* leftVarPtr = dynamic_cast<Var*>(assign.left.get());
+                        Var* leftVarPtr = dynamic_cast<Var*>(assign->left.get());
                         if (!leftVarPtr) {
                             throw runtime_error("Expected Var on left side of input assignment");
                         }

@@ -363,10 +363,28 @@ vector<unique_ptr<Stmt>> ATCGenerator::genBlock(const Spec* spec,
     TypeMap localTypeMap;
     string suffix = to_string(blockIndex);
 
-    // Step 1: Collect input variables from API call arguments
-    vector<unique_ptr<Expr>> inputVars;
+    // Step 1: Collect input variables from API call arguments and precondition
+    vector<unique_ptr<Expr>> rawInputVars;
+    // Collect from args
     for (const auto& arg : block->call->call->args) {
-        collectInputVars(arg, inputVars, suffix, blockSymTable, localTypeMap);
+        collectInputVars(arg, rawInputVars, suffix, blockSymTable, localTypeMap);
+    }
+    // Collect from precondition (to support Any(x))
+    if (block->pre) {
+        collectInputVars(block->pre, rawInputVars, suffix, blockSymTable, localTypeMap);
+    }
+
+    // Deduplicate input variables
+    vector<unique_ptr<Expr>> inputVars;
+    set<string> seenVars;
+    for (auto& varExpr : rawInputVars) {
+        if (varExpr->exprType == ExprType::VAR) {
+            Var* v = dynamic_cast<Var*>(varExpr.get());
+            if (seenVars.find(v->name) == seenVars.end()) {
+                seenVars.insert(v->name);
+                inputVars.push_back(std::move(varExpr));
+            }
+        }
     }
 
     // Step 2: Create input statements for each input variable
@@ -388,8 +406,8 @@ vector<unique_ptr<Stmt>> ATCGenerator::genBlock(const Spec* spec,
     // Step 4: Handle primed variables in postcondition
     // Extract variables with prime notation (e.g., U')
     set<string> primedVars;
-    if (block->response.expr) {
-        extractPrimedVars(block->response.expr, primedVars);
+    if (block->response.ResponseExpr) {
+        extractPrimedVars(block->response.ResponseExpr, primedVars);
     }
 
     // Step 5: Create old variable assignments for primed variables
@@ -416,26 +434,16 @@ vector<unique_ptr<Stmt>> ATCGenerator::genBlock(const Spec* spec,
         std::move(convertedArgs)
     );
 
-    // Create LHS tuple with response code and response expression (if present)
-    // (_RESPONSE_200, responseExpr) := apiCall(args)  -- when response.expr exists
-    // (_RESPONSE_200) := apiCall(args)                -- when response.expr is nullptr
-    // vector<unique_ptr<Expr>> lhsTupleElements;
+    // Create LHS using ResponseExpr from the API call response
+    // ResponseExpr contains (_RESPONSE_CODE_XXX, expr) or just _RESPONSE_CODE_XXX
+    unique_ptr<Expr> returnVar = nullptr;
     
-    // Add response code as a variable
-    // string responseCodeVar = httpResponseCodeToString(block->call->response.code);
-    // lhsTupleElements.push_back();
-    
-    // // Add response expression variables only if they exist
-    unique_ptr<Var> returnVar = make_unique<Var>("_result" + suffix);
-    
-    
-    
-    if (block->call->response.expr!=nullptr) {
-        // Convert the response expression to get variable names
-        auto convertedResponseExpr = convertExpr(block->call->response.expr, blockSymTable, suffix);
-        returnVar = make_unique<Var>(
-            dynamic_cast<Var*>(convertedResponseExpr.get())->name
-        );
+    if (block->call->response.ResponseExpr) {
+        // Convert the response expression to get variable names with suffix
+        returnVar = convertExpr(block->call->response.ResponseExpr, blockSymTable, suffix);
+    } else {
+        // Fallback to default result variable
+        returnVar = make_unique<Var>("_result" + suffix);
     }
     
     // Create assignment
@@ -447,8 +455,8 @@ vector<unique_ptr<Stmt>> ATCGenerator::genBlock(const Spec* spec,
 
     // Step 7: Generate postcondition assertion
     // assert(post) where primes are removed
-    if (block->response.expr) {
-        auto convertedPost = convertExpr(block->response.expr, blockSymTable, suffix);
+    if (block->response.ResponseExpr) {
+        auto convertedPost = convertExpr(block->response.ResponseExpr, blockSymTable, suffix);
         auto postWithoutPrimes = removePrimeNotation(convertedPost, primedVars);
         blockStmts.push_back(make_unique<Assert>(std::move(postWithoutPrimes)));
     }
@@ -461,7 +469,7 @@ vector<unique_ptr<Stmt>> ATCGenerator::genBlock(const Spec* spec,
  * Implements the genATC algorithm from design notes
  */
 Program ATCGenerator::generate(const Spec* spec,
-                               SymbolTable* globalSymTable) {
+                               SymbolTable* globalSymTable, vector<string> testString) {
     vector<unique_ptr<Stmt>> programStmts;
 
     // Step 1: Generate initialization block
@@ -472,17 +480,28 @@ Program ATCGenerator::generate(const Spec* spec,
 
     // Step 2: Generate blocks for each API call in spec
     // Each block uses a child symbol table from the global symbol table
-    for (size_t i = 0; i < spec->blocks.size(); i++) {
-        const API* block = spec->blocks[i].get();
-        SymbolTable* blockSymTable = globalSymTable ? globalSymTable->getChild(i) : nullptr;
+    
+    
+    for(size_t j=0; j<testString.size();j++){
 
-        if (block && blockSymTable) {
-            // Generate statements for this block
-            auto blockStmts = genBlock(spec, block, blockSymTable, i);
-            for (auto& stmt : blockStmts) {
-                programStmts.push_back(std::move(stmt));
+        for (size_t i = 0; i < spec->blocks.size(); i++) {
+            if(testString[j] != spec->blocks[i]->name){
+                continue;
+            }else{
+                const API* block = spec->blocks[i].get();
+                SymbolTable* blockSymTable = globalSymTable ? globalSymTable->getChild(i) : nullptr;
+
+                if (block && blockSymTable) {
+                    // Generate statements for this block
+                    auto blockStmts = genBlock(spec, block, blockSymTable, i);
+                    for (auto& stmt : blockStmts) {
+                        programStmts.push_back(std::move(stmt));
+                    }
+                }
             }
         }
+
+
     }
 
     return Program(std::move(programStmts));

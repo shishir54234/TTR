@@ -408,6 +408,14 @@ void Z3InputMaker::visitFuncCall(const FuncCall &node) {
         theStack.push(z3::expr(ctx, result));
     }
     
+    // ========== Special Functions ==========
+    else if ((node.name == "Any" || node.name == "any") && node.args.size() == 1) {
+        // Any(x) - No condition, but ensures variable is registered
+        z3::expr arg = convertArg(node.args[0]);
+        // Return true (tautology) so it satisfies constraints
+        theStack.push(ctx.bool_val(true));
+    }
+    
     // ========== Unknown Function ==========
     else {
         throw runtime_error("Unsupported function: " + node.name + " with " + to_string(node.args.size()) + " args");

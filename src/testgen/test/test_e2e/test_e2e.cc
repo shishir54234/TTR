@@ -13,6 +13,21 @@
 using namespace std;
 
 /**
+ * Helper function to create ResponseExpr from HTTPResponseCode and optional expr
+ */
+unique_ptr<Expr> makeResponseExpr(unique_ptr<Expr> expr = nullptr) {
+    string codeStr="";
+    if (expr) {
+        vector<unique_ptr<Expr>> tupleElements;
+        tupleElements.push_back(make_unique<Var>(codeStr));
+        tupleElements.push_back(std::move(expr));
+        return make_unique<Tuple>(std::move(tupleElements));
+    } else {
+        return make_unique<Var>(codeStr);
+    }
+}
+
+/**
  * End-to-End Test: Full pipeline from Spec to Concrete Test Case
  * 
  * Pipeline stages:
@@ -27,8 +42,10 @@ protected:
     
     virtual unique_ptr<Spec> makeSpec() = 0;
     virtual SymbolTable* makeSymbolTables() = 0;
+    virtual vector<string> makeTestString() = 0;
     virtual void verify(const Program& ctc) = 0;
     
+
     virtual void cleanup(SymbolTable* globalTable) {
         if (globalTable) {
             // Delete children first
@@ -60,9 +77,10 @@ public:
         cout << "\n[STAGE 2] Generating Abstract Test Case (ATC)..." << endl;
         SymbolTable* globalSymTable = makeSymbolTables();
         TypeMap typeMap;
+        vector<string> testString = makeTestString();
         
         ATCGenerator generator(spec.get(), std::move(typeMap));
-        Program atc = generator.generate(spec.get(), globalSymTable);
+        Program atc = generator.generate(spec.get(), globalSymTable, testString);
         
         cout << "\nAbstract Test Case (ATC):" << endl;
         printer.visitProgram(atc);
@@ -103,27 +121,28 @@ public:
 
 /**
  * E2E Test 1: Simple f1 API call
- * 
+ * TestSTring : f1
  * Spec:
  *   Global: y : int
  *   Init: y := 0
- *   API: f1(x, z)
+ *   API: r:= f1(x, z)
  *     Pre: x > 0 AND z > 0
- *     Post: none
+ *     Post: r = (x+z)
  * 
  * Expected ATC:
  *   y := 0
  *   x0 := input()
  *   z0 := input()
  *   assume(x0 > 0 AND z0 > 0)
- *   _result0 := f1(x0, z0)
- * 
+ *   r0 := f1(x0, z0)
+ *  assert(r0 == x0 + z0)
  * Expected CTC:
  *   y := 0
  *   x0 := <concrete_value>
  *   z0 := <concrete_value>
  *   assume(x0 > 0 AND z0 > 0)
- *   _result0 := f1(x0, z0)
+ *   r0 := f1(x0, z0)
+ *   assert(r0 == x0 + z0)
  */
 class E2ETest1 : public E2ETest {
 public:
@@ -159,21 +178,36 @@ protected:
         andArgs.push_back(std::move(zGt0));
         auto pre = make_unique<FuncCall>("And", std::move(andArgs));
         
-        // API call: f1(x, z)
+        // API call: f1(x, z) -> _RESPONSE_CODE_200
         vector<unique_ptr<Expr>> callArgs;
         callArgs.push_back(make_unique<Var>("x"));
         callArgs.push_back(make_unique<Var>("z"));
         auto call = make_unique<FuncCall>("f1", std::move(callArgs));
         
+        // Response: r
+        auto responseExpr = make_unique<Var>("r");
+        
         auto apiCall = make_unique<APIcall>(
             std::move(call),
-            Response(HTTPResponseCode::OK_200, nullptr)
+            Response(make_unique<Var>("r"))
         );
+        
+        // Post: r = x + z
+        vector<unique_ptr<Expr>> addArgs;
+        addArgs.push_back(make_unique<Var>("x"));
+        addArgs.push_back(make_unique<Var>("z"));
+        auto addExpr = make_unique<FuncCall>("Add", std::move(addArgs));
+
+        vector<unique_ptr<Expr>> eqArgs;
+        eqArgs.push_back(make_unique<Var>("r"));
+        eqArgs.push_back(std::move(addExpr));
+        auto postExpr = make_unique<FuncCall>("Eq", std::move(eqArgs));
         
         blocks.push_back(make_unique<API>(
             std::move(pre),
             std::move(apiCall),
-            Response(HTTPResponseCode::OK_200, nullptr)
+            Response(std::move(postExpr)),
+            "f1"  // Block name
         ));
         
         return make_unique<Spec>(
@@ -198,34 +232,61 @@ protected:
         return globalTable;
     }
     
+    vector<string> makeTestString() override {
+        return {"f1"};
+    }
+    
     void verify(const Program& ctc) override {
         cout << "  Verifying CTC structure..." << endl;
-        
-        // Count statements
         cout << "  Total statements: " << ctc.statements.size() << endl;
         
-        // Check what we have
         int inputCount = 0;
         int concreteCount = 0;
         bool foundF1 = false;
+        bool foundAssert = false;
+        bool foundAssume = false;
         
         for (const auto& stmt : ctc.statements) {
             if (stmt->statementType == StmtType::ASSIGN) {
-                const Assign& assign = dynamic_cast<const Assign&>(*stmt);
-                if (assign.right->exprType == ExprType::FUNCCALL) {
-                    const FuncCall& fc = dynamic_cast<const FuncCall&>(*assign.right);
-                    if (fc.name == "input") {
+                const Assign* assign = dynamic_cast<const Assign*>(stmt.get());
+                if (assign && assign->right->exprType == ExprType::FUNCCALL) {
+                    const FuncCall* fc = dynamic_cast<const FuncCall*>(assign->right.get());
+                    if (fc && fc->name == "input") {
                         inputCount++;
-                        cout << "  Found input() for variable: " << dynamic_cast<const Var&>(*assign.left).name << endl;
+                        const Var* leftVar = dynamic_cast<const Var*>(assign->left.get());
+                        if (leftVar) {
+                            cout << "  Found input() for variable: " << leftVar->name << endl;
+                        }
                     }
-                    if (fc.name == "f1") {
+                    if (fc && fc->name == "f1") {
                         foundF1 = true;
-                        cout << "  ✓ Found f1 API call" << endl;
+                        const Var* leftVar = dynamic_cast<const Var*>(assign->left.get());
+                        if (leftVar) {
+                            cout << "  ✓ Found f1 API call: " << leftVar->name << " := f1(...)" << endl;
+                        }
                     }
-                } else if (assign.right->exprType == ExprType::NUM) {
+                } else if (assign && assign->right->exprType == ExprType::NUM) {
                     concreteCount++;
-                    cout << "  Found concrete assignment: " << dynamic_cast<const Var&>(*assign.left).name << " := " 
-                         << dynamic_cast<const Num&>(*assign.right).value << endl;
+                    const Var* leftVar = dynamic_cast<const Var*>(assign->left.get());
+                    const Num* rightNum = dynamic_cast<const Num*>(assign->right.get());
+                    if (leftVar && rightNum) {
+                        cout << "  ✓ Found concrete assignment: " << leftVar->name << " := " 
+                             << rightNum->value << endl;
+                    }
+                }
+            } else if (stmt->statementType == StmtType::ASSUME) {
+                foundAssume = true;
+                cout << "  ✓ Found assume statement (precondition)" << endl;
+            } else if (stmt->statementType == StmtType::ASSERT) {
+                foundAssert = true;
+                cout << "  ✓ Found assert statement (postcondition)" << endl;
+                const Assert* asrt = dynamic_cast<const Assert*>(stmt.get());
+                if (asrt) {
+                     // Verify structure: Eq(r, Add(x, z))
+                     const FuncCall* eq = dynamic_cast<const FuncCall*>(asrt->expr.get());
+                     if (eq && eq->name == "Eq") {
+                         cout << "    ✓ Assertion is Equality check" << endl;
+                     }
                 }
             }
         }
@@ -233,17 +294,18 @@ protected:
         cout << "  Input calls remaining: " << inputCount << endl;
         cout << "  Concrete assignments: " << concreteCount << endl;
         
-        // For now, just verify the structure exists
         assert(ctc.statements.size() >= 1);
         assert(foundF1);
+        assert(foundAssume);
+        assert(foundAssert);
         
         if (inputCount == 0) {
             cout << "  ✓ All input() calls replaced with concrete values" << endl;
         } else {
-            cout << "  ⚠ Warning: " << inputCount << " input() calls still present (symbolic execution may be incomplete)" << endl;
+            cout << "  ⚠ Warning: " << inputCount << " input() calls still present" << endl;
         }
         
-        cout << "  ✓ API call f1 present in CTC" << endl;
+        cout << "  ✓ Complete CTC verified: assume (pre), f1 call, assert (post)" << endl;
     }
 };
 
@@ -253,11 +315,12 @@ protected:
  * Spec:
  *   Global: y : int
  *   Init: y := 0
- *   API 1: f1(x, z)
+ *   API 1: r= f1(x, z)
  *     Pre: x > 0
- *   API 2: f2()
+ *      Post: r = (x+z)
+ *   API 2: r= f2()
  *     Pre: none
- * 
+ *     Post: r=0
  * Expected: CTC with two API calls, different variable names (x0/z0 for f1)
  */
 class E2ETest2 : public E2ETest {
@@ -278,6 +341,8 @@ protected:
         vector<unique_ptr<API>> blocks;
         
         // Block 1: f1(x, z)
+        // Pre: x > 0
+        // Post: _RESPONSE_CODE_200
         {
             vector<unique_ptr<Expr>> preArgs;
             preArgs.push_back(make_unique<Var>("x"));
@@ -291,17 +356,31 @@ protected:
             
             auto apiCall = make_unique<APIcall>(
                 std::move(call),
-                Response(HTTPResponseCode::OK_200, nullptr)
+                Response(make_unique<Var>("r"))
             );
             
+            // Post: r = x + z
+            vector<unique_ptr<Expr>> addArgs;
+            addArgs.push_back(make_unique<Var>("x"));
+            addArgs.push_back(make_unique<Var>("z"));
+            auto addExpr = make_unique<FuncCall>("Add", std::move(addArgs));
+
+            vector<unique_ptr<Expr>> eqArgs;
+            eqArgs.push_back(make_unique<Var>("r"));
+            eqArgs.push_back(std::move(addExpr));
+            auto postExpr = make_unique<FuncCall>("Eq", std::move(eqArgs));
+
             blocks.push_back(make_unique<API>(
                 std::move(pre),
                 std::move(apiCall),
-                Response(HTTPResponseCode::OK_200, nullptr)
+                Response(std::move(postExpr)),
+                "f1"  // Block name
             ));
         }
         
         // Block 2: f2()
+        // Pre: none (true)
+        // Post: r = 0
         {
             auto pre = make_unique<Num>(1); // true precondition
             
@@ -310,13 +389,20 @@ protected:
             
             auto apiCall = make_unique<APIcall>(
                 std::move(call),
-                Response(HTTPResponseCode::OK_200, nullptr)
+                Response(make_unique<Var>("r"))
             );
             
+            // Post: r = 0
+            vector<unique_ptr<Expr>> eqArgs;
+            eqArgs.push_back(make_unique<Var>("r"));
+            eqArgs.push_back(make_unique<Num>(0));
+            auto postExpr = make_unique<FuncCall>("Eq", std::move(eqArgs));
+
             blocks.push_back(make_unique<API>(
                 std::move(pre),
                 std::move(apiCall),
-                Response(HTTPResponseCode::OK_200, nullptr)
+                Response(std::move(postExpr)),
+                "f2"  // Block name
             ));
         }
         
@@ -347,33 +433,54 @@ protected:
         return globalTable;
     }
     
+    vector<string> makeTestString() override {
+        return {"f1", "f2"};
+    }
+    
     void verify(const Program& ctc) override {
         cout << "  Verifying CTC structure..." << endl;
         cout << "  Total statements: " << ctc.statements.size() << endl;
         
         int inputCount = 0;
         bool foundF1 = false, foundF2 = false;
+        int assumeCount = 0, assertCount = 0;
         
         for (const auto& stmt : ctc.statements) {
             if (stmt->statementType == StmtType::ASSIGN) {
-                const Assign& assign = dynamic_cast<const Assign&>(*stmt);
-                if (assign.right->exprType == ExprType::FUNCCALL) {
-                    const FuncCall& fc = dynamic_cast<const FuncCall&>(*assign.right);
-                    if (fc.name == "input") inputCount++;
-                    if (fc.name == "f1") {
+                const Assign* assign = dynamic_cast<const Assign*>(stmt.get());
+                if (assign && assign->right->exprType == ExprType::FUNCCALL) {
+                    const FuncCall* fc = dynamic_cast<const FuncCall*>(assign->right.get());
+                    if (fc && fc->name == "input") inputCount++;
+                    if (fc && fc->name == "f1") {
                         foundF1 = true;
                         cout << "  ✓ Found f1 API call" << endl;
                     }
-                    if (fc.name == "f2") {
+                    if (fc && fc->name == "f2") {
                         foundF2 = true;
                         cout << "  ✓ Found f2 API call" << endl;
                     }
                 }
+            } else if (stmt->statementType == StmtType::ASSUME) {
+                assumeCount++;
+            } else if (stmt->statementType == StmtType::ASSERT) {
+                assertCount++;
+                 const Assert* asrt = dynamic_cast<const Assert*>(stmt.get());
+                if (asrt) {
+                     const FuncCall* eq = dynamic_cast<const FuncCall*>(asrt->expr.get());
+                     if (eq && eq->name == "Eq") {
+                         cout << "    ✓ Assertion found: " << eq->name << endl;
+                     }
+                }
             }
         }
         
+        cout << "  Assume statements (preconditions): " << assumeCount << endl;
+        cout << "  Assert statements (postconditions): " << assertCount << endl;
+        
         assert(foundF1);
         assert(foundF2);
+        assert(assumeCount >= 2);  // One for each API
+        assert(assertCount >= 2);  // One for each API
         
         if (inputCount == 0) {
             cout << "  ✓ All input() calls replaced with concrete values" << endl;
@@ -381,7 +488,7 @@ protected:
             cout << "  ⚠ Warning: " << inputCount << " input() calls still present" << endl;
         }
         
-        cout << "  ✓ Both API calls present (f1, f2)" << endl;
+        cout << "  ✓ Both API calls present with pre/post conditions (f1, f2)" << endl;
     }
 };
 
@@ -391,9 +498,9 @@ protected:
  * Spec:
  *   Global: y : int
  *   Init: y := 0
- *   API: f1(x, z) with get_y/set_y calls
- *     Pre: x < 10
- *     Post: y' = y + x (using get_y and set_y)
+ *   API: r = f1(x, z) with get_y/set_y calls
+ *     Pre: x < 10 AND Any(z)
+ *     Post: r = x + z (using get_y and set_y)
  * 
  * Expected: CTC with get_y/set_y calls and state management
  */
@@ -419,27 +526,49 @@ protected:
         vector<unique_ptr<APIFuncDecl>> functions;
         vector<unique_ptr<API>> blocks;
         
-        // Precondition: x < 10
+        // Precondition: x < 10 AND Any(z)
+        vector<unique_ptr<Expr>> ltArgs;
+        ltArgs.push_back(make_unique<Var>("x"));
+        ltArgs.push_back(make_unique<Num>(10));
+        auto lt = make_unique<FuncCall>("Lt", std::move(ltArgs));
+
+        vector<unique_ptr<Expr>> anyArgs;
+        anyArgs.push_back(make_unique<Var>("z"));
+        auto any = make_unique<FuncCall>("Any", std::move(anyArgs));
+
         vector<unique_ptr<Expr>> preArgs;
-        preArgs.push_back(make_unique<Var>("x"));
-        preArgs.push_back(make_unique<Num>(10));
-        auto pre = make_unique<FuncCall>("Lt", std::move(preArgs));
+        preArgs.push_back(std::move(lt));
+        preArgs.push_back(std::move(any));
+        auto pre = make_unique<FuncCall>("And", std::move(preArgs));
         
-        // API call: f1(x, 0)
+        // API call: f1(x, z) -> _RESPONSE_CODE_200
         vector<unique_ptr<Expr>> callArgs;
         callArgs.push_back(make_unique<Var>("x"));
-        callArgs.push_back(make_unique<Num>(0));
+        callArgs.push_back(make_unique<Var>("z"));
         auto call = make_unique<FuncCall>("f1", std::move(callArgs));
         
         auto apiCall = make_unique<APIcall>(
             std::move(call),
-            Response(HTTPResponseCode::OK_200, nullptr)
+            Response(make_unique<Var>("r"))
         );
         
+        // Post: _RESPONSE_CODE_200
+        // Post: r = x + z
+        vector<unique_ptr<Expr>> addArgs;
+        addArgs.push_back(make_unique<Var>("x"));
+        addArgs.push_back(make_unique<Var>("z"));
+        auto addExpr = make_unique<FuncCall>("Add", std::move(addArgs));
+
+        vector<unique_ptr<Expr>> eqArgs;
+        eqArgs.push_back(make_unique<Var>("r"));
+        eqArgs.push_back(std::move(addExpr));
+        auto postExpr = make_unique<FuncCall>("Eq", std::move(eqArgs));
+
         blocks.push_back(make_unique<API>(
             std::move(pre),
             std::move(apiCall),
-            Response(HTTPResponseCode::OK_200, nullptr)
+            Response(std::move(postExpr)),
+            "f1"  // Block name
         ));
         
         return make_unique<Spec>(
@@ -456,10 +585,16 @@ protected:
         
         auto* f1Table = new SymbolTable(globalTable);
         string* x = new string("x");
+        string* z = new string("z");
         f1Table->addMapping(x, nullptr);
+        f1Table->addMapping(z, nullptr);
         
         globalTable->addChild(f1Table);
         return globalTable;
+    }
+    
+    vector<string> makeTestString() override {
+        return {"f1"};
     }
     
     void verify(const Program& ctc) override {
@@ -469,27 +604,45 @@ protected:
         int inputCount = 0;
         bool foundSetY = false;
         bool foundF1 = false;
+        bool foundAssume = false;
+        bool foundAssert = false;
         
         for (const auto& stmt : ctc.statements) {
             if (stmt->statementType == StmtType::ASSIGN) {
-                const Assign& assign = dynamic_cast<const Assign&>(*stmt);
-                if (assign.right->exprType == ExprType::FUNCCALL) {
-                    const FuncCall& fc = dynamic_cast<const FuncCall&>(*assign.right);
-                    if (fc.name == "input") inputCount++;
-                    if (fc.name == "set_y") {
+                const Assign* assign = dynamic_cast<const Assign*>(stmt.get());
+                if (assign && assign->right->exprType == ExprType::FUNCCALL) {
+                    const FuncCall* fc = dynamic_cast<const FuncCall*>(assign->right.get());
+                    if (fc && fc->name == "input") inputCount++;
+                    if (fc && fc->name == "set_y") {
                         foundSetY = true;
-                        cout << "  ✓ Found set_y call" << endl;
+                        cout << "  ✓ Found set_y call (global state init)" << endl;
                     }
-                    if (fc.name == "f1") {
+                    if (fc && fc->name == "f1") {
                         foundF1 = true;
                         cout << "  ✓ Found f1 API call" << endl;
                     }
+                }
+            } else if (stmt->statementType == StmtType::ASSUME) {
+                foundAssume = true;
+                cout << "  ✓ Found assume statement (precondition: x < 10 AND Any(z))" << endl;
+            } else if (stmt->statementType == StmtType::ASSERT) {
+                foundAssert = true;
+                cout << "  ✓ Found assert statement (postcondition)" << endl;
+                const Assert* asrt = dynamic_cast<const Assert*>(stmt.get());
+                if (asrt) {
+                     // Verify structure: Eq(r, Add(x, z))
+                     const FuncCall* eq = dynamic_cast<const FuncCall*>(asrt->expr.get());
+                     if (eq && eq->name == "Eq") {
+                         cout << "    ✓ Assertion is Equality check" << endl;
+                     }
                 }
             }
         }
         
         assert(foundSetY);
         assert(foundF1);
+        assert(foundAssume);
+        assert(foundAssert);
         
         if (inputCount == 0) {
             cout << "  ✓ All input() calls replaced with concrete values" << endl;
@@ -497,7 +650,7 @@ protected:
             cout << "  ⚠ Warning: " << inputCount << " input() calls still present" << endl;
         }
         
-        cout << "  ✓ set_y and f1 calls verified" << endl;
+        cout << "  ✓ Complete CTC verified: set_y, assume, f1 call, assert" << endl;
     }
 };
 

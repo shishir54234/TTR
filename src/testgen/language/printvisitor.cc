@@ -145,25 +145,25 @@ void PrintVisitor::visitAPI(const API &node) {
 
 void PrintVisitor::visitResponse(const Response &node) {
     // Print HTTP response code
-    cout << "Response(";
-    switch (node.code) {
-        case HTTPResponseCode::OK_200:
-            cout << "200";
-            break;
-        case HTTPResponseCode::CREATED_201:
-            cout << "201";
-            break;
-        case HTTPResponseCode::BAD_REQUEST_400:
-            cout << "400";
-            break;
-        default:
-            cout << "???";
-            break;
-    }
+    // cout << "Response(";
+    // switch (node.code) {
+    //     case HTTPResponseCode::OK_200:
+    //         cout << "200";
+    //         break;
+    //     case HTTPResponseCode::CREATED_201:
+    //         cout << "201";
+    //         break;
+    //     case HTTPResponseCode::BAD_REQUEST_400:
+    //         cout << "400";
+    //         break;
+    //     default:
+    //         cout << "???";
+    //         break;
+    // }
     // Print expression if present
-    if (node.expr) {
+    if (node.ResponseExpr) {
         cout << ", ";
-        visit(node.expr.get());
+        visit(node.ResponseExpr.get());
     }
     cout << ")";
 }

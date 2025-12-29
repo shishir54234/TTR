@@ -96,17 +96,20 @@ APIFuncDecl::APIFuncDecl(string name,
 Init::Init(string varName, unique_ptr<Expr> expression)
     : varName(std::move(varName)), expr(std::move(expression)) {}
 
-Response::Response(HTTPResponseCode code, unique_ptr<Expr> expr) :
-    code(code), expr(std::move(expr)) {}
+Response::Response(unique_ptr<Expr> expr) {
+    // Build ResponseExpr that includes the response code as part of the expression
+    // Format: _RESPONSE_CODE_200, _RESPONSE_CODE_201, etc.
+    ResponseExpr = std::move(expr);
+}
 
 APIcall::APIcall(unique_ptr<FuncCall> Call, Response Response) :
 	call(std::move(Call)), response(std::move(Response)) {}
 
 API::API(unique_ptr<Expr> precondition,
     unique_ptr<APIcall> functionCall,
-    Response response)
+    Response response, string name)
     : pre(std::move(precondition)), call(std::move(functionCall)),
-      response(std::move(response)) {}
+      response(std::move(response)), name(name) {}
 
 Spec::Spec(vector<unique_ptr<Decl>> globals,
      vector<unique_ptr<Init>> init,
@@ -123,7 +126,7 @@ Assign::Assign(unique_ptr<Expr> left, unique_ptr<Expr> right)
 
 Assume::Assume(unique_ptr<Expr> e) : Stmt(StmtType::ASSUME), expr(std::move(e)) {}
 
-Assert::Assert(unique_ptr<Expr> e) : Stmt(StmtType::ASSUME), expr(std::move(e)) {}
+Assert::Assert(unique_ptr<Expr> e) : Stmt(StmtType::ASSERT), expr(std::move(e)) {}
 
 Program::Program(vector<unique_ptr<Stmt>> Statements)
     : statements(std::move(Statements)) {}

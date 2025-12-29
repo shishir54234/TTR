@@ -110,7 +110,7 @@ public:
      * @return Program representing the Abstract Test Case
      */
     Program generate(const Spec* spec, 
-                    SymbolTable* globalSymTable);
+                    SymbolTable* globalSymTable, vector<string> testString);
 };
 
 #endif // GENATC_HH

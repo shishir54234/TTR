@@ -40,6 +40,7 @@ private:
     // Statement cloners
     unique_ptr<Stmt> cloneAssign(const Assign &node);
     unique_ptr<Stmt> cloneAssume(const Assume &node);
+    unique_ptr<Stmt> cloneAssert(const Assert &node);
 
     // Helper to clone vectors
     vector<unique_ptr<TypeExpr>> cloneTypeExprVector(const vector<unique_ptr<TypeExpr>>& vec);

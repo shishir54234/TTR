@@ -73,6 +73,8 @@ unique_ptr<Stmt> CloneVisitor::cloneStmt(const Stmt* node) {
             return cloneAssign(dynamic_cast<const Assign&>(*node));
         case StmtType::ASSUME:
             return cloneAssume(dynamic_cast<const Assume&>(*node));
+        case StmtType::ASSERT:
+            return cloneAssert(dynamic_cast<const Assert&>(*node));
         default:
             throw runtime_error("Unknown Stmt type in cloneStmt");
     }
@@ -172,6 +174,11 @@ unique_ptr<Stmt> CloneVisitor::cloneAssign(const Assign &node) {
 unique_ptr<Stmt> CloneVisitor::cloneAssume(const Assume &node) {
     unique_ptr<Expr> clonedExprVal = cloneExpr(node.expr.get());
     return make_unique<Assume>(std::move(clonedExprVal));
+}
+
+unique_ptr<Stmt> CloneVisitor::cloneAssert(const Assert &node) {
+    unique_ptr<Expr> clonedExprVal = cloneExpr(node.expr.get());
+    return make_unique<Assert>(std::move(clonedExprVal));
 }
 
 

@@ -50,6 +50,7 @@ enum class StmtType
 {
     ASSIGN,
     ASSUME,
+    ASSERT,
     DECL
 };
 
@@ -238,10 +239,9 @@ public:
 class Response
 {
 public:
-    HTTPResponseCode code;
-    unique_ptr<Expr> expr;
+    unique_ptr<Expr> ResponseExpr;
 public:
-    Response(HTTPResponseCode, unique_ptr<Expr>);
+    Response( unique_ptr<Expr>);
 };
 
 class APIcall
@@ -258,11 +258,13 @@ public:
 class API
 {
 public:
+
+    string name; // Optional name for the API block
     unique_ptr<Expr> pre;
     unique_ptr<APIcall> call;
     Response response;
 public:
-    API(unique_ptr<Expr>, unique_ptr<APIcall>, Response);
+    API(unique_ptr<Expr>, unique_ptr<APIcall>, Response, string name="");
 };
 
 // Block class (placeholder as it wasn't fully specified in the grammar)
